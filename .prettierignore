@@ -1,0 +1,26 @@
+# next.js
+.next
+node_modules
+pnpm-lock.yaml
+
+# macOS
+.DS_Store
+
+# Ignore AI agents files and skills
+.github/skills
+.github/agents
+.github/hooks
+.agents
+.claude
+.cursor
+.impeccable
+.codex
+
+DESIGN.md
+PRODUCT.md
+AGENTS.md
+CLAUDE.md
+skills-lock.json
+
+# ignore superpower files
+docs/superpower

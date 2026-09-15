@@ -1,0 +1,81 @@
+name: Pull Request Tests
+
+on:
+  pull_request:
+    paths-ignore:
+      # The ignore only works if the whole PR touches nothing but these files.
+      # https://github.com/actions/runner/issues/2324#issuecomment-1703345084
+      - '**.md'
+      - '**.svg'
+      - '**.png'
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+
+# Least privilege: these jobs only read the repo.
+permissions:
+  contents: read
+
+# Cancel superseded in-progress runs for the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.x'
+
+# Actions used (please keep this list current)
+#  https://github.com/marketplace/actions/checkout
+#  https://github.com/marketplace/actions/setup-pnpm
+#  https://github.com/marketplace/actions/setup-node-js-environment
+
+jobs:
+  pre-commit-lint-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install pre-commit
+        run: pip3 install pre-commit
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Lint, format and secret checks
+        run: make check
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - run: pnpm type-check
+
+      - run: pnpm build
