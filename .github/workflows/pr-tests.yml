@@ -40,7 +40,7 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 15
     if: ${{ !github.event.pull_request.draft }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
