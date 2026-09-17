@@ -1,4 +1,6 @@
 # The mart API is only deployed to prod.
+# Local development only: the deployed app derives the mart host from its own hostname
+# (src/lib/environment.ts), so this is never built into the artifact.
 MART_API_URL ?= https://mart.prod.umccr.org
 export MART_API_URL
 
@@ -27,6 +29,6 @@ start:
 dev:
 	@pnpm dev
 
-# Static export to out/, served from the mart UI bucket at portal.umccr.org/mart/ (see README).
+# Static export to out/, served from the orcahouse UI bucket at portal.umccr.org/orcahouse/ (see README).
 build:
 	@pnpm build

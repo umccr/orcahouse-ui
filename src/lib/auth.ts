@@ -5,8 +5,8 @@ import { Hub } from 'aws-amplify/utils';
 /**
  * Cognito sign-in through the hosted UI with Google federation, as in the OrcaBus portal.
  *
- * Deployed under portal.umccr.org/mart/, the settings come from the portal's runtime config
- * (/env.js sets window.config, as for orca-ui-v2), so the app uses the portal's app client
+ * Deployed under portal.umccr.org/orcahouse/, the settings come from the portal's runtime config
+ * (env.js sets window.config, as for orca-ui-v2), so the app uses the portal's app client
  * and shares its session. In development they come from the NEXT_PUBLIC_* variables that
  * start.sh exports. Amplify runs in the browser only and refreshes the tokens on demand; the
  * ID token is what the mart API's JWT authorizer validates.
@@ -14,7 +14,7 @@ import { Hub } from 'aws-amplify/utils';
 
 declare global {
   interface Window {
-    /** The portal's runtime config, set by /env.js. */
+    /** The portal's runtime config, set by this app's env.js. */
     config?: Record<string, string | undefined>;
   }
 }
@@ -30,13 +30,18 @@ let returnPending =
 
 let redirectError: string | null = null;
 
-/** The portal's window.config, loading /env.js if it has not run yet. Empty in development. */
+/**
+ * The portal's window.config, loading env.js if it has not run yet. Empty in development.
+ *
+ * Loaded from this app's own base path, not the domain root: the portal's config Lambda writes one
+ * env.js per app, into each app's own bucket under its path prefix.
+ */
 function loadRuntimeConfig(): Promise<Record<string, string | undefined>> {
   if (process.env.NODE_ENV === 'development') return Promise.resolve({});
   if (window.config) return Promise.resolve(window.config);
   return new Promise((resolve) => {
     const script = document.createElement('script');
-    script.src = '/env.js';
+    script.src = `${BASE_PATH}/env.js`;
     script.onload = () => resolve(window.config ?? {});
     script.onerror = () => resolve({});
     document.head.append(script);
@@ -52,22 +57,20 @@ let configured: Promise<boolean> | null = null;
 export function configureAuth(): Promise<boolean> {
   if (typeof window === 'undefined') return Promise.resolve(false);
   configured ??= loadRuntimeConfig().then((runtime) => {
+    // The OAuth redirect URLs are not taken from either source: both name the portal root, which is
+    // a different app. This app returns to itself instead; see APP_URL below.
     const settings = runtime.VITE_COG_USER_POOL_ID
       ? {
           region: runtime.VITE_REGION,
           userPoolId: runtime.VITE_COG_USER_POOL_ID,
           userPoolClientId: runtime.VITE_COG_APP_CLIENT_ID,
           oauthDomain: runtime.VITE_OAUTH_DOMAIN,
-          redirectSignIn: runtime.VITE_OAUTH_REDIRECT_IN,
-          redirectSignOut: runtime.VITE_OAUTH_REDIRECT_OUT,
         }
       : {
           region: process.env.NEXT_PUBLIC_COGNITO_REGION,
           userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID,
           userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_APP_CLIENT_ID,
           oauthDomain: process.env.NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN,
-          redirectSignIn: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN,
-          redirectSignOut: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT,
         };
     const { userPoolId, userPoolClientId, oauthDomain } = settings;
     if (!userPoolId || !userPoolClientId || !oauthDomain) return false;
@@ -80,7 +83,19 @@ export function configureAuth(): Promise<boolean> {
       }
     });
 
-    const origin = window.location.origin;
+    /**
+     * Where Cognito returns the user after sign-in and sign-out: this app's own root.
+     *
+     * Derived from the current origin plus the base path, so it is correct in development and in
+     * every deployed environment, including both prod hostnames, with no per-environment config.
+     *
+     * This exact string must be registered as a callback and logout URL on the Cognito app client.
+     * It is generated from `portal_app_paths` in the cognito_aai Terraform stack, so **apply that
+     * stack before shipping a change to this value**, or the hosted UI rejects sign-in with
+     * `redirect_mismatch`. BASE_PATH has no trailing slash, hence the explicit one.
+     */
+    const appUrl = `${window.location.origin}${BASE_PATH}/`;
+
     Amplify.configure({
       Auth: {
         Cognito: {
@@ -93,9 +108,8 @@ export function configureAuth(): Promise<boolean> {
                 ? oauthDomain
                 : `${oauthDomain}.auth.${settings.region || 'ap-southeast-2'}.amazoncognito.com`,
               scopes: ['openid', 'email', 'profile'],
-              // Each URL must be registered on the Cognito app client.
-              redirectSignIn: [settings.redirectSignIn || origin],
-              redirectSignOut: [settings.redirectSignOut || origin],
+              redirectSignIn: [appUrl],
+              redirectSignOut: [appUrl],
               responseType: 'code',
             },
           },

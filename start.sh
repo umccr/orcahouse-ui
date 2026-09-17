@@ -24,7 +24,7 @@
 #     aws sso login --profile dev && export AWS_PROFILE=dev
 # The mart API is only deployed to prod and rejects those sign-in tokens, so pass your own
 # token for API calls with MART_API_TOKEN (see the Makefile).
-# Open http://localhost:3000/mart/ (the app's base path). Cognito's localhost app client
+# Open http://localhost:3000/orcahouse/ (the app's base path). Cognito's localhost app client
 # accepts only http://localhost:3000 as its callback, so sign-in needs the default port.
 # PORT still overrides it, e.g. `PORT=3001 pnpm start`.
 
