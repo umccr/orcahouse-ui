@@ -6,8 +6,8 @@ mart GraphQL API exposes, grouped the way the dbt project lays them out, with fi
 sorting, paging and CSV export. Further modules are planned for project overview,
 pipeline monitoring, automations, and user-built tables.
 
-This is currently a demo MVP. It is built as static files to be served under
-https://portal.umccr.org/mart/, next to the OrcaBus portal, and people sign in with their UMCCR
+This is currently a demo MVP. It is built as static files served under
+https://portal.umccr.org/orcahouse/, next to the OrcaBus portal, and people sign in with their UMCCR
 Google account through the portal's Cognito user pool.
 
 ## Related repositories
@@ -17,31 +17,35 @@ Google account through the portal's Cognito user pool.
 | [umccr/orcahouse](https://github.com/umccr/orcahouse)                                                 | Warehouse infrastructure, including the mart API (`infra/api`) and the legacy dbt project that publishes the `mart` schema |
 | [umccr/orcavault](https://github.com/umccr/orcavault)                                                 | Redshift rebuild of the OrcaVault data model                                                                               |
 | [umccr/orcahouse-doc](https://github.com/umccr/orcahouse-doc)                                         | Warehouse documentation, glossary and ERDs                                                                                 |
-| [umccr/frontend-infrastructure-pipelines](https://github.com/umccr/frontend-infrastructure-pipelines) | The portal's S3 buckets, CloudFront distribution and runtime config (`/env.js`)                                            |
+| [umccr/frontend-infrastructure-pipelines](https://github.com/umccr/frontend-infrastructure-pipelines) | The portal's S3 buckets, CloudFront distribution, runtime config (`env.js`) and this app's build/deploy pipeline           |
 
 ## How it works
 
 ```text
-Deployed: https://portal.umccr.org/mart/ (static files in S3, behind the portal's CloudFront)
-  Browser ──/env.js──────────────> the portal's runtime config: Cognito user pool and app client
-  Browser ──GraphQL + ID token───> https://mart.prod.umccr.org/graphql
+Deployed: https://portal.umccr.org/orcahouse/ (static files in S3, behind the portal's CloudFront)
+  Browser ──/orcahouse/env.js────> the portal's runtime config: Cognito user pool and app client
+  Browser ──GraphQL + ID token───> https://mart.<env>.umccr.org/graphql
                                    API Gateway JWT authorizer
                                    -> Lambda (PostGraphile)
                                    -> Aurora PostgreSQL `mart` schema
 
-Local development: http://localhost:3000/mart/ (next dev)
-  Browser ──/mart/api/graphql/───> Next.js dev proxy ──MART_API_TOKEN──> https://mart.prod.umccr.org/graphql
+Local development: http://localhost:3000/orcahouse/ (next dev)
+  Browser ──/orcahouse/api/graphql/──> Next.js dev proxy ──MART_API_TOKEN──> https://mart.prod.umccr.org/graphql
 ```
 
 - **Static export, one page.** `next build` writes plain HTML, CSS and JS to `out/` with
-  `basePath: '/mart'`, the counterpart of orca-ui-v2's `base: '/v2/'`. The app is a single
-  page: the catalogue is `/mart/` and a table is `/mart/?table=<name>`. One `index.html`
-  therefore serves every URL, which is what the portal's CloudFront rewrite expects, and
-  tables the build has never seen still open.
+  `basePath: '/orcahouse'`, the counterpart of orca-ui-v2's `base: '/v2/'`. The app is a single
+  page: the catalogue is `/orcahouse/` and a table is `/orcahouse/?table=<name>`. One
+  `index.html` therefore serves every URL, which is what the portal's CloudFront rewrite
+  expects, and tables the build has never seen still open.
+- **No backend host is built in.** The portal builds this app once and promotes the same
+  artifact from dev to prod, so `src/lib/environment.ts` derives the mart API host from the
+  hostname the app is served from: `mart.dev.umccr.org` on the dev portal,
+  `mart.prod.umccr.org` on prod. `MART_API_URL` is local development only.
 - **Cognito sign-in.** `src/lib/auth.ts` configures Amplify for the hosted UI with Google
-  federation, as orca-ui-v2 does. Deployed, it reads the portal's `/env.js`, so it uses the
-  portal's app client and shares the portal session: anyone signed in to the portal is signed
-  in here. That client is also the only one the mart API's authorizer accepts. Locally the
+  federation, as orca-ui-v2 does. Deployed, it reads the portal's `env.js` from this app's own base
+  path, so it uses the portal's app client and shares the portal session: anyone signed in to
+  the portal is signed in here. That client is also the only one the mart API's authorizer accepts. Locally the
   settings come from `start.sh`. `AuthGate` in the root layout shows the sign-in page to anyone
   signed out, and the avatar menu in the header shows the profile and current token, has a
   theme setting, and signs out.
@@ -64,7 +68,7 @@ Local development: http://localhost:3000/mart/ (next dev)
   `fastq_history`), or appears in the group name or description.
 - **Shareable URLs.** The table, page, page size, sort and filter live in the query string, for
   example
-  `/mart/?table=lims&sort=SEQUENCING_RUN_DATE_DESC&filter={"and":[{"libraryId":{"equalTo":"L2400001"}}]}`.
+  `/orcahouse/?table=lims&sort=SEQUENCING_RUN_DATE_DESC&filter={"and":[{"libraryId":{"equalTo":"L2400001"}}]}`.
 
 ## Run locally
 
@@ -79,8 +83,8 @@ make start MART_API_TOKEN=<your ID token from portal.umccr.org>
 
 `make start` sources `start.sh`, the same wrapper orca-ui-v2 uses: it reads the Cognito sign-in
 settings for the localhost app client from SSM Parameter Store in the dev account, exports them
-as `NEXT_PUBLIC_*` variables and starts the dev server. Open http://localhost:3000/mart/ (the
-root `/` redirects there) and sign in with your UMCCR Google account.
+as `NEXT_PUBLIC_*` variables and starts the dev server. Open http://localhost:3000/orcahouse/
+(the root `/` redirects there) and sign in with your UMCCR Google account.
 
 The mart API is only deployed to prod, so the Makefile points `MART_API_URL` at
 https://mart.prod.umccr.org. It does not accept localhost sign-in tokens, so in local
@@ -98,35 +102,49 @@ only reports that sign-in is not configured.
 | `NEXT_PUBLIC_COGNITO_USER_POOL_ID`    | `start.sh`, from `/data_portal/client/cog_user_pool_id`         | Cognito user pool                                       |
 | `NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN`    | `start.sh`, from `/data_portal/client/oauth_domain`             | Hosted UI domain prefix (a full host name also works)   |
 | `NEXT_PUBLIC_COGNITO_APP_CLIENT_ID`   | `start.sh`, from `/data_portal/client/cog_app_client_id_local`  | Localhost app client                                    |
-| `NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN`  | `start.sh`, from `/data_portal/client/oauth_redirect_in_local`  | Where Cognito returns after sign-in                     |
-| `NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT` | `start.sh`, from `/data_portal/client/oauth_redirect_out_local` | Where Cognito returns after sign-out                    |
+| `NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN`  | `start.sh`, from `/data_portal/client/oauth_redirect_in_local`  | Unused: the app derives its own redirect (see below)    |
+| `NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT` | `start.sh`, from `/data_portal/client/oauth_redirect_out_local` | Unused: the app derives its own redirect (see below)    |
 | `NEXT_PUBLIC_COGNITO_REGION`          | `start.sh` (`ap-southeast-2`)                                   | Region of the user pool                                 |
-| `MART_API_URL`                        | Makefile, default `https://mart.prod.umccr.org`                 | Base URL of the mart API, built into the static export  |
+| `MART_API_URL`                        | Makefile, default `https://mart.prod.umccr.org`                 | Local development only: upstream for the dev proxy      |
 | `MART_API_TOKEN`                      | you, e.g. `make start MART_API_TOKEN=...`                       | Local development only: bearer token for mart API calls |
 
 The deployed app does not use the `NEXT_PUBLIC_*` values: it reads the same settings from the
-portal's `/env.js`.
+portal's `env.js`. It does not use `MART_API_URL` either, deriving the mart host from its own
+hostname instead, so nothing environment-specific is baked into the artifact.
+
+The OAuth redirect URLs are derived rather than read from either source, in development and when
+deployed: both `env.js` and the SSM parameters name the portal root, which is a different app.
+`src/lib/auth.ts` uses the current origin plus the base path, so local sign-in returns to
+http://localhost:3000/orcahouse/ and the deployed app returns to its own page. Both URLs are
+registered on the relevant Cognito app client by the `cognito_aai` Terraform stack.
 
 ## Deployment
 
-`pnpm build` (or `make build`) writes the static site to `out/`. Every URL in it starts with
-`/mart/`. To serve it at https://portal.umccr.org/mart/ the way orca-ui-v2 is served at `/v2/`,
-the portal's CloudFront distribution (`lib/orcaui/infrastructure-stack.ts` in
-frontend-infrastructure-pipelines) needs:
+Deployment is owned by
+[umccr/frontend-infrastructure-pipelines](https://github.com/umccr/frontend-infrastructure-pipelines),
+not by this repository. There is nothing to run here: a push to `main` triggers
+`OrcaHouseAppCICDPipeline`, which runs `pnpm build`, syncs `out/` to
+`s3://orcahouse-cloudfront-<account>/orcahouse/`, and invokes the portal's config Lambda to write
+`env.js`. Dev deploys automatically; prod is behind a manual approval.
 
-1. A mart UI bucket, with `out/` uploaded under the `mart/` prefix, for example
-   `aws s3 sync out/ s3://<mart-ui-bucket>/mart/ --delete`.
-2. A `/mart/*` behaviour with that bucket as its origin and the `spa-rewrite.js` viewer-request
-   function, given a `/mart` branch like its `/v2` one so that paths without a file extension
-   load `/mart/index.html`. Every file in `out/` has an extension the function already passes
-   through (`html`, `js`, `css`, `txt`, `svg`, `png`).
-3. A CloudFront invalidation of `/mart/*` after each upload.
+That repository owns the bucket, the `/orcahouse/*` CloudFront behaviour and the viewer-request
+rewrite. This app's entry in its registry (`lib/portal/apps.ts`) declares
+`pathPrefix: 'orcahouse'` and `clientRouting: 'static-export'` — the latter is why
+`trailingSlash: true` matters here: it makes each route export as `<route>/index.html`, which is
+what the rewrite resolves to.
 
-Only `MART_API_URL` is fixed at build time. The Cognito settings come from the portal's
-`/env.js` at runtime, so the portal's config Lambda needs no change. A sign-in started on
-/mart/ returns to the portal home page, because https://portal.umccr.org is the only callback
-URL on the portal's app client; coming straight back to /mart/ would need
-https://portal.umccr.org/mart/ registered there too.
+Two consequences of the shared portal worth knowing:
+
+- **Nothing environment-specific is in the artifact.** One build is promoted from dev to prod.
+  Cognito settings arrive at runtime via `env.js`; the mart API host is derived from the
+  hostname. Do not add a backend URL to `next.config.ts`'s `env` block, which Next inlines at
+  build time.
+- **Sign-in returns to this app, not the portal home page.** The redirect URL is derived from the
+  current origin plus the base path, so it is right in every environment without configuration.
+  That exact URL must be registered as a callback and logout URL on the portal's Cognito app
+  client, which the `cognito_aai` Terraform stack generates from its `portal_app_paths` list.
+  **Apply that stack before shipping a change to the base path**, or the hosted UI rejects sign-in
+  with `redirect_mismatch`.
 
 ## Development workflow
 
@@ -193,6 +211,7 @@ field, `all` + the plural PascalCase table name (`fastq_history` becomes `allFas
   Reading them live from the `catalog` mart table would remove the duplication.
 - **Query limits.** The API caps request bodies at 10,000 bytes and uses offset pagination,
   so very wide tables or very deep pages will be slow or rejected.
-- **Deployment.** The mart UI bucket, the `/mart/*` CloudFront behaviour and the `/mart` branch
-  of the rewrite function do not exist yet; see [Deployment](#deployment). Only prod is planned
-  for now, as the mart API only runs there.
+- **No dev mart API.** `mart.dev.umccr.org` does not exist yet, so on the dev portal queries
+  surface an API error while sign-in and the catalogue still work. Deliberate: better than the
+  dev deployment reading production data. Local development points at prod with your own
+  `MART_API_TOKEN`.

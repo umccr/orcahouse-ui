@@ -8,7 +8,7 @@ import { signIn } from '@/lib/auth';
 const NOT_CONFIGURED =
   process.env.NODE_ENV === 'development'
     ? 'Sign-in is not configured. Start the dev server with `make start`, which reads the Cognito settings from SSM (see start.sh).'
-    : "Sign-in is not configured: the portal's runtime config (/env.js) did not load.";
+    : "Sign-in is not configured: the portal's runtime config (env.js) did not load.";
 
 /** Full-screen sign-in, styled after the OrcaBus portal's. Always dark. */
 export function SignInPage({ configured, error }: { configured: boolean; error?: string }) {

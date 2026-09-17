@@ -2,8 +2,11 @@
 // next.config.ts), so this proxy is not part of the static export.
 export const dynamic = 'force-dynamic';
 
-// Set in next.config.ts from the Makefile's MART_API_URL.
-const MART_API_URL = process.env.MART_API_URL;
+// Read straight from the shell (the Makefile exports it), not from next.config.ts's `env` block:
+// this handler only ever runs in `next dev`, server-side, and declaring it in `env` would inline the
+// value into the client bundle, where the deployed app must not have a baked-in API host.
+// The deployed app derives its endpoint from the hostname instead: see src/lib/environment.ts.
+const MART_API_URL = (process.env.MART_API_URL || 'https://mart.prod.umccr.org').replace(/\/$/, '');
 
 // Your own bearer token for the mart API, such as the ID token from portal.umccr.org
 // (profile menu > Token), sent instead of the signed-in session's token.
