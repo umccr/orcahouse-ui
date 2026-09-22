@@ -114,6 +114,8 @@ export interface FilterFieldMeta {
 export const OPERATOR_ORDER = [
   'equalTo',
   'notEqualTo',
+  // Text columns only: a case-insensitive substring match.
+  'includesInsensitive',
   'greaterThan',
   'greaterThanOrEqualTo',
   'lessThan',
@@ -124,6 +126,7 @@ export const OPERATOR_ORDER = [
 export const OPERATOR_LABELS: Record<string, string> = {
   equalTo: 'equals',
   notEqualTo: 'not equal',
+  includesInsensitive: 'contains',
   greaterThan: 'greater than',
   greaterThanOrEqualTo: 'greater or equal',
   lessThan: 'less than',

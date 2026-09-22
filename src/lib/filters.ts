@@ -81,3 +81,13 @@ export function serializeFilter(
   });
   return clauses.length ? { [state.op]: clauses } : null;
 }
+
+type FilterInput = Record<string, unknown>;
+
+/** ANDs filter inputs together, skipping missing and empty ones, which the API rejects. */
+export function combineFilters(...filters: (FilterInput | null)[]): FilterInput | null {
+  const present = filters.filter(
+    (filter): filter is FilterInput => filter !== null && Object.keys(filter).length > 0
+  );
+  return present.length > 1 ? { and: present } : (present[0] ?? null);
+}

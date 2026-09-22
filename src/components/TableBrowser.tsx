@@ -1,19 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@apollo/client/react';
+import { ChevronDown } from 'lucide-react';
 import { useMartSchema } from '@/hooks/useMartSchema';
 import { groupById, resolveCatalog } from '@/lib/catalog';
 import { downloadCsv } from '@/lib/csv';
-import { parseFilterJson } from '@/lib/filters';
+import { combineFilters, parseFilterJson } from '@/lib/filters';
 import {
   buildRowsQuery,
   EMPTY_QUERY,
   type RowsResult,
   type RowsVariables,
 } from '@/lib/query-builder';
+import { pickSearchColumn, searchableFields, searchClause } from '@/lib/row-search';
 import {
   filterFields,
   humanize,
@@ -28,6 +30,7 @@ import { DataTable } from './DataTable';
 import { ErrorNotice } from './ErrorNotice';
 import { FilterBuilder } from './FilterBuilder';
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES, Pagination } from './Pagination';
+import { RowSearch } from './RowSearch';
 import { StatusBadge } from './StatusBadge';
 import { BUTTON } from './ui';
 
@@ -82,6 +85,7 @@ export function TableBrowser({ table }: Props) {
     () => (schema && collection ? orderByValues(schema, collection.orderByType) : []),
     [schema, collection]
   );
+  const searchFields = useMemo(() => searchableFields(filterMeta), [filterMeta]);
 
   const page = Math.max(1, Number(params.get('page')) || 1);
   const sizeParam = Number(params.get('size'));
@@ -89,6 +93,10 @@ export function TableBrowser({ table }: Props) {
   const sort = params.get('sort');
   const filterRaw = params.get('filter');
   const filter = useMemo(() => parseFilterJson(filterRaw), [filterRaw]);
+  // The row search is kept apart from `filter`, which the filter builder owns, and ANDed on.
+  const searchText = params.get('q') ?? '';
+  const searchColumn = pickSearchColumn(searchFields, params.get('qcol'));
+  const defaultSearchColumn = pickSearchColumn(searchFields);
 
   const update = useCallback(
     (patch: Patch, replace = false) => {
@@ -116,7 +124,9 @@ export function TableBrowser({ table }: Props) {
   }, [collection, columns, defaultSort, filterRaw, sort, update]);
 
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  // The advanced filter starts closed: the row search covers most lookups.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPanelId = useId();
   const visible = useMemo(() => columns.filter((c) => !hidden.has(c.name)), [columns, hidden]);
 
   const document = useMemo(
@@ -133,7 +143,7 @@ export function TableBrowser({ table }: Props) {
     first: size,
     offset: (page - 1) * size,
     orderBy: sort ? [sort] : undefined,
-    filter: filter ?? undefined,
+    filter: combineFilters(filter, searchClause(searchColumn, searchText)) ?? undefined,
   };
   const { data, previousData, loading, error, refetch } = useQuery<RowsResult, RowsVariables>(
     document ?? EMPTY_QUERY,
@@ -150,6 +160,14 @@ export function TableBrowser({ table }: Props) {
   const onSort = (column: string) => {
     const prefix = sortPrefix(column);
     update({ sort: sort === `${prefix}_DESC` ? `${prefix}_ASC` : `${prefix}_DESC`, page: null });
+  };
+  // Search updates replace the history entry, so typing does not leave one per pause.
+  const onSearch = (text: string) => update({ q: text || null, page: null }, true);
+  const onSearchColumn = (column: string) => {
+    const patch: Patch = { qcol: column === defaultSearchColumn ? null : column };
+    // Another column only changes the rows, and so the page count, when there is text.
+    if (searchText.trim()) patch.page = null;
+    update(patch, true);
   };
   const exportCsv = () =>
     downloadCsv(
@@ -202,9 +220,6 @@ export function TableBrowser({ table }: Props) {
           </p>
         </div>
         <div className='flex flex-wrap items-center gap-2'>
-          <button type='button' className={BUTTON} onClick={() => setFiltersOpen((o) => !o)}>
-            Filters{filterCount ? ` (${filterCount})` : ''}
-          </button>
           <ColumnPicker columns={columns} hidden={hidden} onChange={setHidden} />
           <button type='button' className={BUTTON} onClick={exportCsv} disabled={!rows.length}>
             Export CSV
@@ -227,13 +242,44 @@ export function TableBrowser({ table }: Props) {
         />
       )}
 
-      {filtersOpen && collection && (
-        <FilterBuilder
-          key={filterRaw ?? ''}
-          fields={filterMeta}
-          initial={filterRaw}
-          onApply={(json) => update({ filter: json, page: null })}
-        />
+      {collection && (
+        <div className='flex flex-wrap items-center gap-2'>
+          {/* No column to search until the API allows the search operator (see lib/row-search.ts). */}
+          {searchColumn && (
+            <RowSearch
+              fields={searchFields}
+              column={searchColumn}
+              text={searchText}
+              onColumnChange={onSearchColumn}
+              onSearch={onSearch}
+            />
+          )}
+          <button
+            type='button'
+            className={BUTTON}
+            aria-expanded={filtersOpen}
+            aria-controls={filterPanelId}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            Advanced filter{filterCount ? ` (${filterCount})` : ''}
+            <ChevronDown
+              aria-hidden='true'
+              className={`h-3.5 w-3.5 transition-transform ${filtersOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+        </div>
+      )}
+
+      {/* Hidden rather than unmounted, so closing the panel keeps edits not yet applied. */}
+      {collection && (
+        <div id={filterPanelId} hidden={!filtersOpen}>
+          <FilterBuilder
+            key={filterRaw ?? ''}
+            fields={filterMeta}
+            initial={filterRaw}
+            onApply={(json) => update({ filter: json, page: null })}
+          />
+        </div>
       )}
 
       {error && <ErrorNotice title='Query failed' message={error.message} />}
