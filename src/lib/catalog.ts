@@ -40,8 +40,11 @@ export interface CatalogEntry {
   collection: string;
   description: string;
   status: TableStatus;
-  /** Preferred orderBy enum value when the URL carries no sort. */
-  defaultSort?: string;
+  /**
+   * Preferred orderBy enum value when the URL carries no sort. `null` turns off the
+   * first-visit sort and filter, which otherwise fall back to the first temporal column.
+   */
+  defaultSort?: string | null;
 }
 
 const CENTRE = 'Listing of the Centre genomic sequencing';
@@ -189,6 +192,7 @@ export const CATALOG: CatalogEntry[] = [
     collection: 'allExternalLims',
     description: 'Listing of the externally sequenced LIMS metadata in flat table model',
     status: 'STABLE',
+    defaultSort: null,
   },
   // grimmond
   {

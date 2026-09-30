@@ -169,7 +169,8 @@ When the URL has neither `sort` nor `filter`, the view sorts newest first and hi
 sort column is null, as the legacy portal did. The sort is the catalogue's `defaultSort` when the
 API offers it, or else the first `Date` or `Datetime` column, descending. The filter is
 `{"and":[{"<column>":{"isNull":false}}]}`. Both are written to the URL, replacing the current
-entry, so they show in the advanced filter and can be removed there.
+entry, so they show in the advanced filter and can be removed there. A catalogue entry with
+`defaultSort: null` (such as `external_lims`) gets neither and opens unsorted and unfiltered.
 
 ### The rows query
 
