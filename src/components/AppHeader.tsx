@@ -9,7 +9,10 @@ export function AppHeader() {
           <span className='bg-signal inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold text-white'>
             OH
           </span>
-          <span>OrcaHouse</span>
+          <span className='flex items-end gap-2'>
+            <span>OrcaHouse</span>
+            <span className='text-muted dark:text-muted-dark text-[10px] font-medium'>mart</span>
+          </span>
         </Link>
         <UserMenu />
       </div>

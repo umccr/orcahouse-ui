@@ -40,12 +40,16 @@ interface Props {
 
 type Patch = Record<string, string | null>;
 
-/** Newest first on the catalogue's preferred key, else on the first temporal column. */
+/**
+ * Newest first on the catalogue's preferred key, else on the first temporal column.
+ * None when the catalogue sets `defaultSort: null`.
+ */
 function pickDefaultSort(
-  preferred: string | undefined,
+  preferred: string | null | undefined,
   sortValues: string[],
   columns: ColumnMeta[]
 ): string | null {
+  if (preferred === null) return null;
   if (preferred && sortValues.includes(preferred)) return preferred;
   for (const column of columns) {
     const candidate = `${sortPrefix(column.name)}_DESC`;
