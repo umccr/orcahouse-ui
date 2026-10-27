@@ -23,13 +23,13 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@apollo/client": "^4.3.4",
+    "@apollo/client": "^4.3.5",
     "@apollo/client-integration-nextjs": "^0.14.5",
     "@headlessui/react": "^2.2.10",
     "aws-amplify": "^6.22.2",
     "graphql": "^17.0.2",
-    "lucide-react": "^1.59.0",
-    "next": "^16.4.2",
+    "lucide-react": "^1.61.0",
+    "next": "^16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "rxjs": "^7.8.2"
@@ -40,7 +40,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^10.13.0",
-    "eslint-config-next": "^16.4.2",
+    "eslint-config-next": "^16.4.3",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
