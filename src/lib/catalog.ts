@@ -45,6 +45,8 @@ export interface CatalogEntry {
    * first-visit sort and filter, which otherwise fall back to the first temporal column.
    */
   defaultSort?: string | null;
+  /** Keeps the table out of the nav, search, home and direct navigation, even if the API exposes it. */
+  hidden?: boolean;
 }
 
 const CENTRE = 'Listing of the Centre genomic sequencing';
@@ -73,6 +75,7 @@ export const CATALOG: CatalogEntry[] = [
     collection: 'allFastqHistories',
     description: `${CENTRE} unaligned read level file FASTQ S3 historical locations`,
     status: 'STABLE',
+    hidden: true,
   },
   {
     table: 'bam',
@@ -246,11 +249,17 @@ function matchesCollection(entry: CatalogEntry, field: string): boolean {
  * Pass `null` while the schema is still loading to keep every entry navigable.
  */
 export function resolveCatalog(live: { field: string }[] | null): ResolvedTable[] {
-  if (!live) return CATALOG.map((entry) => ({ ...entry }));
+  const visible = CATALOG.filter((entry) => !entry.hidden);
+  if (!live) return visible.map((entry) => ({ ...entry }));
   const liveCollections = live.map((c) => c.field);
 
+  // Hidden entries claim their collection too, so it does not resurface under "other".
   const claimed = new Set<string>();
-  const known = CATALOG.map<ResolvedTable>((entry) => {
+  for (const entry of CATALOG.filter((e) => e.hidden)) {
+    const field = liveCollections.find((f) => matchesCollection(entry, f));
+    if (field) claimed.add(field);
+  }
+  const known = visible.map<ResolvedTable>((entry) => {
     const field = liveCollections.find((f) => matchesCollection(entry, f));
     if (field) claimed.add(field);
     return { ...entry, collection: field ?? entry.collection, available: Boolean(field) };
